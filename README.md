@@ -51,3 +51,6 @@ vercel --prod
 ```
 
 After deployment, open `<your-vercel-url>/docs` for Swagger UI.
+
+The Vercel function entrypoint is `api/index.py`; its minimal runtime dependency
+list is in `api/requirements.txt`.
