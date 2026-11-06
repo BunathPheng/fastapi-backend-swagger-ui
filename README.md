@@ -39,3 +39,15 @@ Run tests with:
 ```bash
 pytest
 ```
+
+## Deploy to Vercel
+
+Install the Vercel CLI, sign in, and deploy from the project root:
+
+```bash
+npm install --global vercel
+vercel login
+vercel --prod
+```
+
+After deployment, open `<your-vercel-url>/docs` for Swagger UI.
