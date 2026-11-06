@@ -1,6 +1,9 @@
-# E-Learning FastAPI Example
+# Bunath Pheng Portfolio API
 
-A small e-learning course catalog API built with FastAPI. It demonstrates typed request/response models, validation, filtering, and generated Swagger UI.
+FastAPI backend for the portfolio frontend at
+[`BunathPheng/portfolio`](https://github.com/BunathPheng/portfolio). It exposes
+the portfolio content used by the projects, skills, experience, education, and
+contact sections.
 
 ## Run locally
 
@@ -11,46 +14,45 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive Swagger UI, or `/redoc` for ReDoc.
+Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for Swagger UI.
 
-## Example endpoints
+## Endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/portfolio` | Return all frontend content in one response |
+| `GET /api/projects` | List portfolio projects |
+| `GET /api/projects/{id}` | Get one project |
+| `GET /api/skills` | List skill groups |
+| `GET /api/experience` | List work experience |
+| `GET /api/education` | List education |
+| `GET /api/social-links` | List social links |
+| `POST /api/contact` | Validate and accept a contact form submission |
+
+The contact endpoint accepts `name`, `email`, `subject`, `message`,
+`website` (honeypot), and `turnstileToken`. It has a five-request-per-minute
+per-IP limit. Set `TURNSTILE_SECRET_KEY` to enable Cloudflare Turnstile
+verification; when it is not set, verification is skipped for local
+development. Contact submissions are logged with a reference ID and should be
+connected to an email or database provider for production delivery.
+
+## Frontend integration
+
+Set the frontend API base URL to the deployed backend and request
+`GET /api/portfolio`. The response uses the frontend's existing camelCase keys
+(`skillGroups`, `socialLinks`, `navItems`, `liveUrl`, and `githubUrl`).
+
+For cross-origin deployments, set a comma-separated allowlist:
 
 ```bash
-# List all courses
-curl http://127.0.0.1:8000/courses
-
-# Filter courses
-curl "http://127.0.0.1:8000/courses?level=beginner"
-
-# Create a course
-curl -X POST http://127.0.0.1:8000/courses \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "FastAPI Essentials",
-    "description": "Build APIs with FastAPI and interactive Swagger documentation.",
-    "instructor": "Sam Lee",
-    "level": "intermediate",
-    "duration_hours": 8
-  }'
+CORS_ORIGINS=https://your-portfolio.example
 ```
 
-Run tests with:
+## Tests and Vercel
 
 ```bash
 pytest
 ```
 
-## Deploy to Vercel
-
-Install the Vercel CLI, sign in, and deploy from the project root:
-
-```bash
-npm install --global vercel
-vercel login
-vercel --prod
-```
-
-After deployment, open `<your-vercel-url>/docs` for Swagger UI.
-
-The Vercel function entrypoint is `api/index.py`, selected explicitly by
-`vercel.json`; its runtime dependency list is in `api/requirements.txt`.
+Vercel uses `api/index.py` as the Python function entrypoint. Its runtime
+dependencies are listed in `api/requirements.txt`.
