@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 import app.main as main
+from app.database import SupabaseRepository
 
 
 class FakeRepository:
@@ -62,6 +63,14 @@ class FakeRepository:
 
 
 client = TestClient(main.app)
+
+
+def test_supabase_secret_key_is_supported(monkeypatch) -> None:
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SECRET_KEY", "secret-key")
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+    repository = SupabaseRepository()
+    assert repository.configured is True
 
 
 def setup_function() -> None:

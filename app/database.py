@@ -11,7 +11,10 @@ class DatabaseUnavailable(RuntimeError):
 class SupabaseRepository:
     def __init__(self) -> None:
         self.url = os.getenv("SUPABASE_URL", "").rstrip("/")
-        self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+        self.key = (
+            os.getenv("SUPABASE_SECRET_KEY", "").strip()
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+        )
         self.base_url = f"{self.url}/rest/v1" if self.url else ""
 
     @property

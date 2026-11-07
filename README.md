@@ -26,12 +26,13 @@ Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for Swagger UI.
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+SUPABASE_SECRET_KEY=your-server-only-secret-key
 CORS_ORIGINS=https://your-portfolio-domain.vercel.app
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` must only exist in the backend/Vercel project. Never
-put it in the frontend or expose it as a `NEXT_PUBLIC_*` variable.
+`SUPABASE_SECRET_KEY` must only exist in the backend/Vercel project. Never put
+it in the frontend or expose it as a `NEXT_PUBLIC_*` variable.
+`SUPABASE_SERVICE_ROLE_KEY` remains supported for older Supabase projects.
 
 The schema uses separate tables for each portfolio section and PostgreSQL
 `text[]` columns for ordered lists such as skills, technologies, contributions,
