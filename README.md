@@ -51,6 +51,7 @@ table; the FastAPI service uses the server-side service role to access them.
 | `GET /api/experience` | List work experience |
 | `GET /api/education` | List education |
 | `GET /api/social-links` | List social links |
+| `GET /api/devops-lifecycle` | List the DevOps delivery sequence |
 | `POST /api/contact` | Validate and save a contact form submission |
 
 The contact endpoint accepts `name`, `email`, `subject`, `message`,

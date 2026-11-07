@@ -50,6 +50,15 @@ class FakeRepository:
             ],
             "social_links": [{"label": "GitHub", "href": "https://github.com/BunathPheng"}],
             "nav_items": [{"label": "Projects", "href": "#projects"}],
+            "devops_lifecycle": [
+                {
+                    "step": "01",
+                    "title": "Plan",
+                    "description": "Plan delivery.",
+                    "image": "https://example.com/plan.svg",
+                    "color": "from-emerald-500/20 to-teal-500/10",
+                }
+            ],
         }
         return rows[table]
 
@@ -91,6 +100,7 @@ def test_portfolio_comes_from_database_tables() -> None:
     assert body["projects"][0]["title"] == "SmartOps: Automation Platform"
     assert body["skillGroups"][0]["skills"] == ["Docker"]
     assert body["navItems"][0]["href"] == "#projects"
+    assert body["devopsLifecycle"][0]["title"] == "Plan"
 
 
 def test_project_detail_and_missing_project() -> None:

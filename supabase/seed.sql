@@ -54,3 +54,13 @@ insert into public.social_links (label, href, sort_order) values
 insert into public.nav_items (label, href, sort_order) values
   ('About', '#about', 1), ('Skills', '#skills', 2), ('Projects', '#projects', 3),
   ('Experience', '#experience', 4), ('Education', '#education', 5), ('Contact', '#contact', 6);
+
+insert into public.devops_lifecycle (step, title, description, image, color, sort_order) values
+  ('01', 'Plan', 'Shape requirements, architecture, and delivery goals before implementation.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jira/jira-original.svg', 'from-emerald-500/20 to-teal-500/10', 1),
+  ('02', 'Code', 'Build maintainable features with Git workflows, reviews, and shared standards.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/git/git-original.svg', 'from-orange-500/20 to-amber-500/10', 2),
+  ('03', 'Build', 'Compile, package, and create repeatable artifacts through automated pipelines.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jenkins/jenkins-original.svg', 'from-red-500/20 to-orange-500/10', 3),
+  ('04', 'Test', 'Validate quality with automated checks before changes reach an environment.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/pytest/pytest-original.svg', 'from-cyan-500/20 to-sky-500/10', 4),
+  ('05', 'Release', 'Version trusted artifacts and prepare transparent, traceable releases.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg', 'from-slate-500/20 to-indigo-500/10', 5),
+  ('06', 'Deploy', 'Deliver safely with containers, Kubernetes, GitOps, and progressive rollouts.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg', 'from-blue-500/20 to-cyan-500/10', 6),
+  ('07', 'Operate', 'Keep services resilient with infrastructure automation and dependable runbooks.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/terraform/terraform-original.svg', 'from-violet-500/20 to-blue-500/10', 7),
+  ('08', 'Monitor', 'Observe health, performance, and user impact to continuously improve delivery.', 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/prometheus/prometheus-original.svg', 'from-orange-500/20 to-red-500/10', 8);

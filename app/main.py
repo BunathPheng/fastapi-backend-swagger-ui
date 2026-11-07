@@ -56,6 +56,14 @@ class SocialLink(BaseModel):
     href: str
 
 
+class DevOpsStage(BaseModel):
+    step: str
+    title: str
+    description: str
+    image: str
+    color: str
+
+
 class PortfolioResponse(BaseModel):
     projects: list[Project]
     skill_groups: list[SkillGroup] = Field(alias="skillGroups")
@@ -63,6 +71,7 @@ class PortfolioResponse(BaseModel):
     education: list[Education]
     social_links: list[SocialLink] = Field(alias="socialLinks")
     nav_items: list[SocialLink] = Field(alias="navItems")
+    devops_lifecycle: list[DevOpsStage] = Field(alias="devopsLifecycle")
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -174,6 +183,16 @@ def _link(row: dict) -> SocialLink:
     return SocialLink(label=row["label"], href=row["href"])
 
 
+def _devops_stage(row: dict) -> DevOpsStage:
+    return DevOpsStage(
+        step=row["step"],
+        title=row["title"],
+        description=row["description"],
+        image=row["image"],
+        color=row["color"],
+    )
+
+
 @app.get("/", tags=["health"])
 def health_check() -> dict[str, str | bool]:
     return {
@@ -185,13 +204,14 @@ def health_check() -> dict[str, str | bool]:
 
 @app.get("/api/portfolio", response_model=PortfolioResponse, tags=["portfolio"])
 async def get_portfolio() -> PortfolioResponse:
-    projects, skills, experience, education, social, nav = await asyncio.gather(
+    projects, skills, experience, education, social, nav, lifecycle = await asyncio.gather(
         _rows("projects"),
         _rows("skill_groups"),
         _rows("experiences"),
         _rows("education"),
         _rows("social_links"),
         _rows("nav_items"),
+        _rows("devops_lifecycle"),
     )
     return PortfolioResponse(
         projects=[_project(row) for row in projects],
@@ -200,7 +220,13 @@ async def get_portfolio() -> PortfolioResponse:
         education=[_education(row) for row in education],
         socialLinks=[_link(row) for row in social],
         navItems=[_link(row) for row in nav],
+        devopsLifecycle=[_devops_stage(row) for row in lifecycle],
     )
+
+
+@app.get("/api/devops-lifecycle", response_model=list[DevOpsStage], tags=["portfolio"])
+async def list_devops_lifecycle() -> list[DevOpsStage]:
+    return [_devops_stage(row) for row in await _rows("devops_lifecycle")]
 
 
 @app.get("/api/projects", response_model=list[Project], tags=["portfolio"])
