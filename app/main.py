@@ -1,14 +1,15 @@
 import os
-import re
 import time
 import uuid
-from datetime import datetime, timezone
+import asyncio
 from typing import Annotated, Literal
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.database import DatabaseUnavailable, repository
 
 
 class Project(BaseModel):
@@ -24,7 +25,6 @@ class Project(BaseModel):
     technologies: list[str]
     live_url: str = Field(alias="liveUrl")
     github_url: str = Field(alias="githubUrl")
-
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -63,7 +63,6 @@ class PortfolioResponse(BaseModel):
     education: list[Education]
     social_links: list[SocialLink] = Field(alias="socialLinks")
     nav_items: list[SocialLink] = Field(alias="navItems")
-
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -74,7 +73,6 @@ class ContactRequest(BaseModel):
     message: str = Field(min_length=10, max_length=5000)
     website: str = Field(default="", max_length=200)
     turnstile_token: str = Field(default="", alias="turnstileToken")
-
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -84,91 +82,10 @@ class ContactResponse(BaseModel):
     reference: str
 
 
-projects = [
-    Project(
-        id=1,
-        title="English Club: E-Learning Management System",
-        category="Full-Stack",
-        image="English.jpg",
-        problem="Learners needed a unified platform to register, access courses, take quizzes, and track progress—without fragmented tools or insecure access.",
-        solution="Built an end-to-end learning platform with JWT-authenticated REST APIs, role-aware dashboards, and a responsive Next.js frontend for seamless course consumption.",
-        architecture="Next.js frontend with NextAuth JWT sessions, RESTful API integration, server-side rendering for performance, and modular page routing for courses, quizzes, and progress tracking.",
-        contribution=["Integrated frontend with backend RESTful APIs and ensured smooth data flow", "Implemented JWT authentication with NextAuth", "Built user onboarding, course consumption, and progress tracking flows", "Collaborated with backend team on API contracts and error handling"],
-        results=["Complete E2E learning flow from registration to progress tracking", "Secure authenticated access across all user journeys", "Responsive UI built with TypeScript and Tailwind CSS"],
-        technologies=["Next.js", "TypeScript", "Tailwind CSS", "REST APIs", "JWT", "NextAuth"],
-        liveUrl="#",
-        githubUrl="https://github.com/BunathPheng",
-    ),
-    Project(
-        id=2,
-        title="SmartOps: Automation Platform",
-        category="DevOps",
-        image="Final.png",
-        problem="Manual deployments were slow, error-prone, and lacked traceability from source code to production environments.",
-        solution="Designed a GitOps-first automation platform covering the full deployment lifecycle with CI/CD pipelines, container orchestration, and infrastructure as code.",
-        architecture="Jenkins and GitHub Actions for CI, Argo CD for GitOps delivery, Docker/Kubernetes for runtime, Ansible for provisioning, and Prometheus/Grafana for observability.",
-        contribution=["Built CI/CD pipelines with Jenkins and GitHub Actions", "Implemented GitOps workflows with Argo CD", "Containerized workloads and deployed on Kubernetes", "Automated infrastructure provisioning with Ansible"],
-        results=["Automated deployment lifecycle from repo to production", "Faster, more reliable releases with full traceability", "Reduced manual intervention and deployment risk"],
-        technologies=["Jenkins", "GitHub Actions", "Argo CD", "Docker", "Kubernetes", "Ansible", "Prometheus", "Grafana"],
-        liveUrl="#",
-        githubUrl="https://github.com/BunathPheng",
-    ),
-    Project(
-        id=3,
-        title="Selamounty: Digital Cultural & Educational Hub",
-        category="Platform",
-        image="selamonty.png",
-        problem="Cultural institutions needed a scalable digital platform to deliver rich media content and educational experiences to a global audience.",
-        solution="Delivered backend services and deployment automation for a virtual museum platform with resilient APIs and automated rollouts.",
-        architecture="Spring Boot microservices with MySQL persistence, Jenkins CI/CD pipelines, Docker containerization, and Nginx reverse proxy for production traffic.",
-        contribution=["Built and maintained Spring Boot API services", "Set up automated deployment pipelines with Jenkins and Docker", "Configured Nginx for production traffic routing", "Ensured reliable rollout for media-rich experiences"],
-        results=["Scalable platform serving global visitors", "Automated deployments with minimal downtime", "Reliable API layer for content delivery"],
-        technologies=["Java", "Spring Boot", "MySQL", "Jenkins", "Docker", "Nginx"],
-        liveUrl="#",
-        githubUrl="https://github.com/BunathPheng",
-    ),
-]
-
-skill_groups = [
-    SkillGroup(category="DevOps & Cloud", icon="cloud", skills=["Docker", "Kubernetes", "Helm", "Jenkins", "Argo CD", "Ansible", "GitHub Actions", "Prometheus", "Grafana"]),
-    SkillGroup(category="Frontend", icon="layout", skills=["React", "Next.js", "TypeScript", "JavaScript", "HTML", "CSS", "Tailwind CSS"]),
-    SkillGroup(category="Backend & Data", icon="database", skills=["Spring Boot", "Java", "PostgreSQL", "MySQL", "REST APIs", "JWT"]),
-    SkillGroup(category="Tools & Design", icon="tool", skills=["Git", "Linux", "Nginx", "Figma"]),
-]
-
-experiences = [
-    Experience(title="DevOps Engineer – SmartOps Automation Platform", company="Korea Software HRD Center", location="Phnom Penh, Cambodia", period="2025", description="Built an automated platform covering the full deployment lifecycle—from repo to production—using GitOps and CI/CD to simplify, speed up, and de-risk releases.", technologies=["Jenkins", "GitHub Actions", "Argo CD", "Docker", "Kubernetes", "Ansible", "Prometheus", "Grafana"]),
-    Experience(title="Backend / Platform Engineer – Selamounty", company="Korea Software HRD Center", location="Phnom Penh, Cambodia", period="2025", description="Delivered a digital cultural and educational platform with automated deployments, API services, and resilient runtime for global visitors.", technologies=["Java", "Spring Boot", "MySQL", "Jenkins", "Docker", "Nginx"]),
-    Experience(title="Front-End Developer – English Club Platform", company="Institute of Science and Technology Advanced Development", location="Phnom Penh, Cambodia", period="2024", description="Built an education platform enabling learners to practice English with authenticated user flows and dashboards.", technologies=["Next.js", "TypeScript", "JWT", "REST APIs", "Tailwind CSS"]),
-]
-
-education = [
-    Education(degree="Bachelor of Computer Science", field="Royal University of Phnom Penh (RUPP)", school="Royal University of Phnom Penh", period="Jan 2022 – Present", description="Comprehensive CS curriculum with focus on software engineering and systems."),
-    Education(degree="Advanced Course: DevOps", field="Korea Software HRD Center (KSHRD)", school="Korea Software HRD Center", period="Jul – Dec 2025", description="Modern CI/CD, containerization, cloud infrastructure, GitOps with Jenkins, GitHub Actions, Argo CD, Docker, and Kubernetes."),
-    Education(degree="Basic Course Training", field="Korea Software HRD Center (KSHRD)", school="Korea Software HRD Center", period="Feb – Jul 2025", description="Foundation across Linux, Docker, Git, UI/UX, Java, HTML/CSS/JS, Tailwind CSS, PostgreSQL, and responsive web apps."),
-    Education(degree="Foundation 2 Generation", field="Institute of Science and Technology Advanced Development (ISTAD)", school="ISTAD", period="Jan 2025 – Present", description="Core software engineering foundations and collaborative projects."),
-]
-
-social_links = [
-    SocialLink(label="LinkedIn", href="https://www.linkedin.com/in/bunath-pheng-71a41b318"),
-    SocialLink(label="GitHub", href="https://github.com/BunathPheng"),
-    SocialLink(label="Telegram", href="https://t.me/pheng_bunath"),
-    SocialLink(label="Facebook", href="https://web.facebook.com/profile.php?id=100027603155423"),
-]
-
-nav_items = [
-    SocialLink(label="About", href="#about"),
-    SocialLink(label="Skills", href="#skills"),
-    SocialLink(label="Projects", href="#projects"),
-    SocialLink(label="Experience", href="#experience"),
-    SocialLink(label="Education", href="#education"),
-    SocialLink(label="Contact", href="#contact"),
-]
-
 app = FastAPI(
     title="Bunath Pheng Portfolio API",
-    description="Content and contact API for Bunath Pheng's portfolio frontend.",
-    version="1.0.0",
+    description="Supabase-backed content and contact API for Bunath Pheng's portfolio frontend.",
+    version="2.0.0",
 )
 
 allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
@@ -183,58 +100,10 @@ app.add_middleware(
 request_log: dict[str, list[float]] = {}
 
 
-@app.get("/", tags=["health"])
-def health_check() -> dict[str, str]:
-    return {"message": "Bunath Pheng Portfolio API is running", "docs": "/docs"}
-
-
-@app.get("/api/portfolio", response_model=PortfolioResponse, tags=["portfolio"])
-def get_portfolio() -> PortfolioResponse:
-    return PortfolioResponse(
-        projects=projects,
-        skillGroups=skill_groups,
-        experiences=experiences,
-        education=education,
-        socialLinks=social_links,
-        navItems=nav_items,
-    )
-
-
-@app.get("/api/projects", response_model=list[Project], tags=["portfolio"])
-def list_projects() -> list[Project]:
-    return projects
-
-
-@app.get("/api/projects/{project_id}", response_model=Project, tags=["portfolio"])
-def get_project(project_id: int) -> Project:
-    project = next((item for item in projects if item.id == project_id), None)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
-
-
-@app.get("/api/skills", response_model=list[SkillGroup], tags=["portfolio"])
-def list_skills() -> list[SkillGroup]:
-    return skill_groups
-
-
-@app.get("/api/experience", response_model=list[Experience], tags=["portfolio"])
-def list_experience() -> list[Experience]:
-    return experiences
-
-
-@app.get("/api/education", response_model=list[Education], tags=["portfolio"])
-def list_education() -> list[Education]:
-    return education
-
-
-@app.get("/api/social-links", response_model=list[SocialLink], tags=["portfolio"])
-def list_social_links() -> list[SocialLink]:
-    return social_links
-
-
 def _client_ip(request: Request) -> str:
-    return request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+    return request.headers.get(
+        "x-forwarded-for", request.client.host if request.client else "unknown"
+    ).split(",")[0].strip()
 
 
 def _rate_limit(ip: str, limit: int = 5, window_seconds: int = 60) -> bool:
@@ -246,6 +115,128 @@ def _rate_limit(ip: str, limit: int = 5, window_seconds: int = 60) -> bool:
     recent.append(now)
     request_log[ip] = recent
     return True
+
+
+def _database_error(error: DatabaseUnavailable) -> HTTPException:
+    return HTTPException(status_code=503, detail=str(error))
+
+
+async def _rows(table: str) -> list[dict]:
+    try:
+        return await repository.list_rows(table)
+    except DatabaseUnavailable as error:
+        raise _database_error(error) from error
+
+
+def _project(row: dict) -> Project:
+    return Project(
+        id=row["id"],
+        title=row["title"],
+        category=row["category"],
+        image=row["image"],
+        problem=row["problem"],
+        solution=row["solution"],
+        architecture=row["architecture"],
+        contribution=row.get("contribution", []),
+        results=row.get("results", []),
+        technologies=row.get("technologies", []),
+        liveUrl=row["live_url"],
+        githubUrl=row["github_url"],
+    )
+
+
+def _skill_group(row: dict) -> SkillGroup:
+    return SkillGroup(category=row["category"], icon=row["icon"], skills=row.get("skills", []))
+
+
+def _experience(row: dict) -> Experience:
+    return Experience(
+        title=row["title"],
+        company=row["company"],
+        location=row["location"],
+        period=row["period"],
+        description=row["description"],
+        technologies=row.get("technologies", []),
+    )
+
+
+def _education(row: dict) -> Education:
+    return Education(
+        degree=row["degree"],
+        field=row["field"],
+        school=row["school"],
+        period=row["period"],
+        description=row["description"],
+    )
+
+
+def _link(row: dict) -> SocialLink:
+    return SocialLink(label=row["label"], href=row["href"])
+
+
+@app.get("/", tags=["health"])
+def health_check() -> dict[str, str | bool]:
+    return {
+        "message": "Bunath Pheng Portfolio API is running",
+        "docs": "/docs",
+        "database_configured": repository.configured,
+    }
+
+
+@app.get("/api/portfolio", response_model=PortfolioResponse, tags=["portfolio"])
+async def get_portfolio() -> PortfolioResponse:
+    projects, skills, experience, education, social, nav = await asyncio.gather(
+        _rows("projects"),
+        _rows("skill_groups"),
+        _rows("experiences"),
+        _rows("education"),
+        _rows("social_links"),
+        _rows("nav_items"),
+    )
+    return PortfolioResponse(
+        projects=[_project(row) for row in projects],
+        skillGroups=[_skill_group(row) for row in skills],
+        experiences=[_experience(row) for row in experience],
+        education=[_education(row) for row in education],
+        socialLinks=[_link(row) for row in social],
+        navItems=[_link(row) for row in nav],
+    )
+
+
+@app.get("/api/projects", response_model=list[Project], tags=["portfolio"])
+async def list_projects() -> list[Project]:
+    return [_project(row) for row in await _rows("projects")]
+
+
+@app.get("/api/projects/{project_id}", response_model=Project, tags=["portfolio"])
+async def get_project(project_id: int) -> Project:
+    try:
+        row = await repository.get_row("projects", project_id)
+    except DatabaseUnavailable as error:
+        raise _database_error(error) from error
+    if row is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return _project(row)
+
+
+@app.get("/api/skills", response_model=list[SkillGroup], tags=["portfolio"])
+async def list_skills() -> list[SkillGroup]:
+    return [_skill_group(row) for row in await _rows("skill_groups")]
+
+
+@app.get("/api/experience", response_model=list[Experience], tags=["portfolio"])
+async def list_experience() -> list[Experience]:
+    return [_experience(row) for row in await _rows("experiences")]
+
+
+@app.get("/api/education", response_model=list[Education], tags=["portfolio"])
+async def list_education() -> list[Education]:
+    return [_education(row) for row in await _rows("education")]
+
+
+@app.get("/api/social-links", response_model=list[SocialLink], tags=["portfolio"])
+async def list_social_links() -> list[SocialLink]:
+    return [_link(row) for row in await _rows("social_links")]
 
 
 async def _verify_turnstile(token: str, ip: str) -> bool:
@@ -282,6 +273,21 @@ async def submit_contact(
         raise HTTPException(status_code=400, detail="Cloudflare verification failed. Please try again.")
 
     reference = uuid.uuid4().hex[:12]
-    received_at = datetime.now(timezone.utc).isoformat()
-    print(f"contact_submission reference={reference} received_at={received_at} subject={payload.subject!r}")
-    return ContactResponse(accepted=True, message="Message received. I will get back to you soon.", reference=reference)
+    try:
+        await repository.create_contact(
+            {
+                "reference": reference,
+                "name": payload.name.strip(),
+                "email": str(payload.email),
+                "subject": payload.subject.strip(),
+                "message": payload.message.strip(),
+                "ip_address": ip,
+            }
+        )
+    except DatabaseUnavailable as error:
+        raise _database_error(error) from error
+    return ContactResponse(
+        accepted=True,
+        message="Message received. I will get back to you soon.",
+        reference=reference,
+    )

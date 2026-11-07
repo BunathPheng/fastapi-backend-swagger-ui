@@ -1,40 +1,99 @@
 from fastapi.testclient import TestClient
 
-from app.main import app, request_log
+import app.main as main
 
 
-client = TestClient(app)
+class FakeRepository:
+    configured = True
+
+    def __init__(self) -> None:
+        self.saved_contacts: list[dict] = []
+
+    async def list_rows(self, table: str) -> list[dict]:
+        rows = {
+            "projects": [
+                {
+                    "id": 1,
+                    "title": "SmartOps: Automation Platform",
+                    "category": "DevOps",
+                    "image": "Final.png",
+                    "problem": "A deployment problem.",
+                    "solution": "An automated solution.",
+                    "architecture": "A platform architecture.",
+                    "contribution": ["Built pipelines"],
+                    "results": ["Reliable releases"],
+                    "technologies": ["Docker"],
+                    "live_url": "#",
+                    "github_url": "https://github.com/BunathPheng",
+                }
+            ],
+            "skill_groups": [{"category": "DevOps & Cloud", "icon": "cloud", "skills": ["Docker"]}],
+            "experiences": [
+                {
+                    "title": "DevOps Engineer",
+                    "company": "KSHRD",
+                    "location": "Phnom Penh",
+                    "period": "2025",
+                    "description": "Built deployment automation.",
+                    "technologies": ["Docker"],
+                }
+            ],
+            "education": [
+                {
+                    "degree": "Bachelor",
+                    "field": "Computer Science",
+                    "school": "RUPP",
+                    "period": "Present",
+                    "description": "Software engineering studies.",
+                }
+            ],
+            "social_links": [{"label": "GitHub", "href": "https://github.com/BunathPheng"}],
+            "nav_items": [{"label": "Projects", "href": "#projects"}],
+        }
+        return rows[table]
+
+    async def get_row(self, table: str, row_id: int) -> dict | None:
+        rows = await self.list_rows(table)
+        return next((row for row in rows if row.get("id") == row_id), None)
+
+    async def create_contact(self, payload: dict) -> dict:
+        self.saved_contacts.append(payload)
+        return payload
+
+
+client = TestClient(main.app)
 
 
 def setup_function() -> None:
-    request_log.clear()
+    main.request_log.clear()
+    main.repository = FakeRepository()
 
 
 def test_health_check() -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json()["docs"] == "/docs"
+    assert response.json()["database_configured"] is True
 
 
-def test_portfolio_contains_frontend_sections() -> None:
+def test_portfolio_comes_from_database_tables() -> None:
     response = client.get("/api/portfolio")
     assert response.status_code == 200
     body = response.json()
-    assert len(body["projects"]) == 3
-    assert len(body["skillGroups"]) == 4
-    assert body["projects"][0]["githubUrl"] == "https://github.com/BunathPheng"
+    assert body["projects"][0]["title"] == "SmartOps: Automation Platform"
+    assert body["skillGroups"][0]["skills"] == ["Docker"]
+    assert body["navItems"][0]["href"] == "#projects"
 
 
 def test_project_detail_and_missing_project() -> None:
-    response = client.get("/api/projects/2")
+    response = client.get("/api/projects/1")
     assert response.status_code == 200
-    assert response.json()["title"] == "SmartOps: Automation Platform"
+    assert response.json()["githubUrl"] == "https://github.com/BunathPheng"
 
     missing = client.get("/api/projects/999")
     assert missing.status_code == 404
 
 
-def test_contact_submission() -> None:
+def test_contact_submission_is_saved() -> None:
     response = client.post(
         "/api/contact",
         json={
@@ -47,6 +106,7 @@ def test_contact_submission() -> None:
     assert response.status_code == 202
     assert response.json()["accepted"] is True
     assert response.json()["reference"]
+    assert len(main.repository.saved_contacts) == 1
 
 
 def test_contact_validation_and_honeypot() -> None:

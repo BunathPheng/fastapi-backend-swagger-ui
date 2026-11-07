@@ -1,9 +1,10 @@
 # Bunath Pheng Portfolio API
 
-FastAPI backend for the portfolio frontend at
+FastAPI + Supabase backend for the portfolio frontend at
 [`BunathPheng/portfolio`](https://github.com/BunathPheng/portfolio). It exposes
 the portfolio content used by the projects, skills, experience, education, and
-contact sections.
+contact sections. Content is stored in PostgreSQL through Supabase; the API no
+longer uses in-memory portfolio data.
 
 ## Run locally
 
@@ -16,6 +17,28 @@ uvicorn app.main:app --reload
 
 Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for Swagger UI.
 
+## Supabase setup
+
+1. Create a Supabase project.
+2. Open **SQL Editor** and run `supabase/migrations/001_portfolio.sql`.
+3. Run `supabase/seed.sql` once to load the current portfolio content.
+4. Add these Vercel environment variables:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+CORS_ORIGINS=https://your-portfolio-domain.vercel.app
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` must only exist in the backend/Vercel project. Never
+put it in the frontend or expose it as a `NEXT_PUBLIC_*` variable.
+
+The schema uses separate tables for each portfolio section and PostgreSQL
+`text[]` columns for ordered lists such as skills, technologies, contributions,
+and results. `contact_submissions` stores validated messages with a reference,
+IP address, status, and timestamp. Row Level Security is enabled on every
+table; the FastAPI service uses the server-side service role to access them.
+
 ## Endpoints
 
 | Endpoint | Purpose |
@@ -27,14 +50,14 @@ Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for Swagger UI.
 | `GET /api/experience` | List work experience |
 | `GET /api/education` | List education |
 | `GET /api/social-links` | List social links |
-| `POST /api/contact` | Validate and accept a contact form submission |
+| `POST /api/contact` | Validate and save a contact form submission |
 
 The contact endpoint accepts `name`, `email`, `subject`, `message`,
 `website` (honeypot), and `turnstileToken`. It has a five-request-per-minute
 per-IP limit. Set `TURNSTILE_SECRET_KEY` to enable Cloudflare Turnstile
 verification; when it is not set, verification is skipped for local
-development. Contact submissions are logged with a reference ID and should be
-connected to an email or database provider for production delivery.
+development. Contact submissions are saved in Supabase and can be managed from
+the Supabase table editor.
 
 ## Frontend integration
 
