@@ -26,12 +26,14 @@ Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for Swagger UI.
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SECRET_KEY=your-server-only-secret-key
 CORS_ORIGINS=https://your-portfolio-domain.vercel.app
 ```
 
-`SUPABASE_SECRET_KEY` must only exist in the backend/Vercel project. Never put
-it in the frontend or expose it as a `NEXT_PUBLIC_*` variable.
+`SUPABASE_ANON_KEY` is used for Supabase Auth password login and access-token
+verification. Keep `SUPABASE_SECRET_KEY` server-only; never put it in the
+frontend or expose it as a `NEXT_PUBLIC_*` variable.
 `SUPABASE_SERVICE_ROLE_KEY` remains supported for older Supabase projects.
 
 The schema uses separate tables for each portfolio section and PostgreSQL
@@ -44,6 +46,8 @@ table; the FastAPI service uses the server-side service role to access them.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `POST /api/auth/login` | Sign in with a Supabase Auth email and password |
+| `GET /api/auth/me` | Return the authenticated Supabase user |
 | `GET /api/portfolio` | Return all frontend content in one response |
 | `GET /api/projects` | List portfolio projects |
 | `GET /api/projects/{id}` | Get one project |
@@ -60,6 +64,10 @@ per-IP limit. Set `TURNSTILE_SECRET_KEY` to enable Cloudflare Turnstile
 verification; when it is not set, verification is skipped for local
 development. Contact submissions are saved in Supabase and can be managed from
 the Supabase table editor.
+
+Authenticated routes use `Authorization: Bearer <access_token>`. Protect an
+admin endpoint by adding `user: AuthUser = Depends(get_current_user)` to its
+parameters. Portfolio read endpoints remain public for the website.
 
 ## Frontend integration
 

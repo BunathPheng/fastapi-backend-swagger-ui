@@ -5,8 +5,9 @@ import asyncio
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.database import DatabaseUnavailable, repository
@@ -91,6 +92,25 @@ class ContactResponse(BaseModel):
     reference: str
 
 
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
+class AuthUser(BaseModel):
+    id: str
+    email: EmailStr | None = None
+    role: str | None = None
+
+
+class AuthSession(BaseModel):
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str
+    expires_in: int | None = None
+    user: AuthUser | None = None
+
+
 app = FastAPI(
     title="Bunath Pheng Portfolio API",
     description="Supabase-backed content and contact API for Bunath Pheng's portfolio frontend.",
@@ -107,6 +127,7 @@ app.add_middleware(
 )
 
 request_log: dict[str, list[float]] = {}
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def _client_ip(request: Request) -> str:
@@ -128,6 +149,59 @@ def _rate_limit(ip: str, limit: int = 5, window_seconds: int = 60) -> bool:
 
 def _database_error(error: DatabaseUnavailable) -> HTTPException:
     return HTTPException(status_code=503, detail=str(error))
+
+
+def _supabase_auth_config() -> tuple[str, str]:
+    url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    key = (
+        os.getenv("SUPABASE_ANON_KEY", "").strip()
+        or os.getenv("SUPABASE_SECRET_KEY", "").strip()
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    )
+    if not url or not key:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured.")
+    return url, key
+
+
+def _auth_user(payload: dict) -> AuthUser:
+    user_id = payload.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid Supabase user.")
+    return AuthUser(id=str(user_id), email=payload.get("email"), role=payload.get("role"))
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> AuthUser:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=401,
+            detail="Bearer access token required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    supabase_url, key = _supabase_auth_config()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(
+                f"{supabase_url}/auth/v1/user",
+                headers={
+                    "apikey": key,
+                    "Authorization": f"Bearer {credentials.credentials}",
+                },
+            )
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=503, detail="Unable to verify access token.") from error
+
+    if response.status_code == 401:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not response.is_success:
+        raise HTTPException(status_code=503, detail="Supabase Auth verification failed.")
+    return _auth_user(response.json())
 
 
 async def _rows(table: str) -> list[dict]:
@@ -200,6 +274,40 @@ def health_check() -> dict[str, str | bool]:
         "docs": "/docs",
         "database_configured": repository.configured,
     }
+
+
+@app.post("/api/auth/login", response_model=AuthSession, tags=["auth"])
+async def login(payload: LoginRequest) -> AuthSession:
+    supabase_url, key = _supabase_auth_config()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.post(
+                f"{supabase_url}/auth/v1/token",
+                params={"grant_type": "password"},
+                headers={"apikey": key, "Content-Type": "application/json"},
+                json={"email": str(payload.email), "password": payload.password},
+            )
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=503, detail="Unable to reach Supabase Auth.") from error
+
+    if response.status_code in {400, 401}:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    if not response.is_success:
+        raise HTTPException(status_code=503, detail="Supabase Auth login failed.")
+
+    body = response.json()
+    return AuthSession(
+        access_token=body["access_token"],
+        refresh_token=body.get("refresh_token"),
+        token_type=body.get("token_type", "bearer"),
+        expires_in=body.get("expires_in"),
+        user=_auth_user(body["user"]) if body.get("user") else None,
+    )
+
+
+@app.get("/api/auth/me", response_model=AuthUser, tags=["auth"])
+async def current_user(user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    return user
 
 
 @app.get("/api/portfolio", response_model=PortfolioResponse, tags=["portfolio"])
